@@ -1,0 +1,94 @@
+
+Manual
+Global functions:
+
+    module_version() - return module version;
+    dofile_lsp(filename) - load and execute lsp file;
+    url_decode(string);
+    args_decode(string);
+    echo(...) - print values without CRLF;
+    log(string) - write message to system log (or apache error log);
+    content_type(string) - set content type for output data (call before starting output);
+    set_out_header(name,value) - add or change output HTTP header (call before starting output);
+    get_in_header(name) - return input HTTP header;
+    uuid_gen() - return new uuid. 
+
+Global tables:
+
+    _G.env - contain global request information;
+    _G.args - contain GET parameters;
+    _G.args_post - contain POST parameters (if request method = POST and Content-Type = application/x-form-urlencoded). 
+
+'env' table fields:
+
+    _G.env.server_admin
+    _G.env.server_hostname
+    _G.env.remote_ip
+    _G.env.remote_host
+    _G.env.local_ip
+    _G.env.local_host
+    _G.env.hostname
+    _G.env.method - request method;
+    _G.env.handler - apache2 handler name;
+    _G.env.uri - current URI;
+    _G.env.filename - full path to corrent script file;
+    _G.env.args - unparsed GET parameters;
+    _G.env.content - posted content body (if request method = POST and Content-Type <> application/x-form-urlencoded);
+    _G.env.session - user unique session id. 
+
+MySQL functions:
+
+    mysql.open(condata,dbase) - open new connection to MySQL database and return <connection>, condata contain 'user:pass@localhost';
+    mysql.escape(<connection>,string) - escape string for safe usage in statements;
+    mysql.affected_rows(<connection>) - return number of affected rows after UPDATE;
+    mysql.insert_id(<connection>) - return value of AUTO_INCREMENT field after INSERT;
+    mysql.query(<connection>,stmt) - execute SQL statement and return <rowset>;
+    mysql.fields_count(<rowset>) - return fields number in rowset;
+    mysql.rows(<rowset>) - return iterator for access to one row at time (row is a lua table), see io.lines;
+    mysql.table(<rowset>) - return all rows as lua table of tables. 
+
+CURL functions:
+
+    curl.proxy(string) - set proxy server;
+    curl.log_file(path) - set file name for trace (dangerous);
+    curl.timeout(sec) - set I/O timeout (seconds);
+    curl.open(method,url) - open and return new <connection>, method - 'GET' or 'POST';
+    curl.escape(<connection>) - escape string for safe usage in requests (urlencode);
+    curl.send(<connection>[,content]) - send request and return server response body ([content] for POST only);
+    curl.status(<connection>) - return HTTP status code (200 if OK, 0 - if I/O error);
+    curl.set_request_header(<connection>,name,value) - add or change request HTTP header. 
+
+JSON functions:
+
+    json.no_unicode_escape(flag) - disable UTF8 to Unicode encoding feature (flag = 1);
+    json.encode(...) - encode values and return as string;
+    json.decode(string) - decode string and return values (\uXXXX decode to UTF8). 
+
+memcached functions:
+
+    mcache.open(address) - open and return new <connection> to memcached, address can contain 'host:port' or '/path/to/unix/socket';
+    mcache.set(<connection>,key,value[,expires] - store string value (expires in seconds);
+    mcache.get(<connection>,key) - return value by key;
+    mcache.del(<connection>,key) - delete value by key. 
+
+Examples
+
+
+<?# This is comment ?>
+
+<html>
+<head><title>Hello from luasp</title></head>
+
+<body>
+
+Session: <?=env.session?><br>
+
+<?print('Your IP address: '..env.remote_ip)?><br>
+
+URI: <?=env.uri?><br>
+
+</body>
+
+</html>
+
+
