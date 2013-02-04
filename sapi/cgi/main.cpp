@@ -1,10 +1,16 @@
 /*
+ * file: main.cpp
  *
  */
-
+#ifndef lint
+static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $";
+#endif /* not lint */
 #include "fcgi_config.h"
 
-#include <stdlib.h>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <algorithm>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -19,19 +25,16 @@ extern char **environ;
 #include "fcgiapp.h"
 
 #include "llsplib.h"
-#include "luamysql.h"
-#include "luacurl.h"
-#include "luajson.h"
-#include "luamcache.h"
 
 #include <unistd.h>
 #include <uuid/uuid.h>
+#include <syslog.h>
 
 #ifndef VERSION
 #define VERSION ""
 #endif /*VERSION*/
 
-static void PrintEnv(FCGX_Stream *out, char *label, char **envp)
+static void PrintEnv(FCGX_Stream *out, const char *label, char **envp)
 {
     FCGX_FPrintF(out, "%s:<br>\n<pre>\n", label);
     for( ; *envp != NULL; envp++) {
@@ -40,47 +43,441 @@ static void PrintEnv(FCGX_Stream *out, char *label, char **envp)
     FCGX_FPrintF(out, "</pre><p>\n");
 }
 
+#define log(level, format, ...) syslog(level, "%s:%d"#format, __FILE__, __LINE__, __VA_ARGS__)
+
+namespace lsp
+{
+	// lsp handlers
+    enum
+    {
+	handler_type_unknown=0,
+	handler_type_lsp=1,
+	handler_type_lua=2
+    };
+    
+
+    // lua container
+    struct LUABAG
+    {
+	lua_State* L;
+    };
+
+	int io_def_puts(void* ctx,const char* s) { return FCGX_PutS(s, ((FCGX_Request*)ctx)->out); }
+    int io_def_putc(void* ctx,int c) { return FCGX_PutChar(c, ((FCGX_Request*)ctx)->out); }
+    int io_def_write(void* ctx,const char* s,size_t len) { return FCGX_PutStr(s, len, ((FCGX_Request*)ctx)->out); }
+
+	// initialize
+	bool luabag_init(LUABAG* p);
+    // cleanup
+    bool luabag_cleanup(LUABAG* p);
+
+	// run
+	int luabag_run(LUABAG* p, FCGX_Request* r);
+
+    // implementation of lsp host functions
+    int lua_log(lua_State *L);
+    int lua_content_type(lua_State *L);
+    int lua_set_out_header(lua_State *L);
+    int lua_get_in_header(lua_State *L);
+    int lua_uuid_gen(lua_State *L);
+    int lua_version(lua_State *L);
+
+    // lsp support
+    int read_request_data(lua_State *L);
+}
+
 int main ()
 {
-    FCGX_Stream *in, *out, *err;
-    FCGX_ParamArray envp;
+	FCGX_Init();
+	FCGX_Request request;
     int count = 0;
 
-    while (FCGX_Accept(&in, &out, &err, &envp) >= 0) {
-        char *contentLength = FCGX_GetParam("CONTENT_LENGTH", envp);
-        int len = 0;
+	FCGX_InitRequest(&request, 0, 0);
 
-        FCGX_FPrintF(out,
-           "Content-type: text/html\r\n"
-           "\r\n"
-           "<title>FastCGI echo (fcgiapp version)</title>"
-           "<h1>FastCGI echo (fcgiapp version)</h1>\n"
-           "Request number %d,  Process ID: %d<p>\n", ++count, getpid());
+    openlog("lua_fcgi", LOG_CONS | LOG_PID, 0);
+    log(LOG_INFO, "%s", "====Started!!!");
 
-        if (contentLength != NULL)
-            len = strtol(contentLength, NULL, 10);
-
-        if (len <= 0) {
-            FCGX_FPrintF(out, "No data from standard input.<p>\n");
-        }
-        else {
-            int i, ch;
-
-            FCGX_FPrintF(out, "Standard input:<br>\n<pre>\n");
-            for (i = 0; i < len; i++) {
-                if ((ch = FCGX_GetChar(in)) < 0) {
-                    FCGX_FPrintF(out,
-                        "Error: Not enough bytes received on standard input<p>\n");
-                    break;
-                }
-                FCGX_PutChar(ch, out);
-            }
-            FCGX_FPrintF(out, "\n</pre><p>\n");
-        }
-
-        PrintEnv(out, "Request environment", envp);
-        PrintEnv(out, "Initial environment", environ);
+    while (FCGX_Accept_r(&request) >= 0) {
+		lsp::LUABAG luabag;
+		if (!luabag_init(&luabag))
+			log(LOG_INFO, "%s", "====Init failed!!=====");
+		if (0 != luabag_run(&luabag, &request))
+			log(LOG_INFO, "%s", "====Run failed!!=====");
+		if (!luabag_cleanup(&luabag))
+			log(LOG_INFO, "%s", "====close failed!!!");
+		FCGX_Finish_r(&request);
     } /* while */
+    log(LOG_INFO, "%s", "====Ended!!!");
 
     return 0;
 }
+
+
+bool lsp::luabag_init(LUABAG *luabag)
+{
+    if(!luabag)
+    {
+		return false;
+	}
+
+	luabag->L=lua_open();
+	
+	luaL_openlibs(luabag->L);
+	
+	luaopen_lualsp(luabag->L);
+	
+	/*
+	luaopen_luamysql(luabag->L);
+
+	luaopen_luacurl(luabag->L);
+	
+	luaopen_luajson(luabag->L);
+	
+	luaopen_luamcache(luabag->L);
+	*/
+	
+	lua_register(luabag->L,"module_version",lua_version);
+	lua_register(luabag->L,"log",lua_log);
+	lua_register(luabag->L,"uuid_gen",lua_uuid_gen);
+
+	/* TODO: for init_script
+	if(g_conf->init_script)
+	{
+	    if(luaL_loadfile(luabag->L,g_conf->init_script) || lua_pcall(luabag->L,0,0,0))
+	    {
+		log(LOG_ERR,0,r,"%s",lua_tostring(luabag->L,-1));
+		lua_pop(luabag->L,1);
+	    }	    
+	}
+	*/
+	
+	lua_register(luabag->L,"content_type",lua_content_type);
+	lua_register(luabag->L,"set_out_header",lua_set_out_header);
+	lua_register(luabag->L,"get_in_header",lua_get_in_header);
+
+	return true;
+}
+
+int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
+{
+	int handler_type = handler_type_unknown;
+
+	char* handler = FCGX_GetParam("SCRIPT_NAME", r->envp);
+
+	if(handler)
+    {
+		handler=strrchr(handler,'.');
+		if(!handler)
+		{
+			log(LOG_ERR, "%s", "Script name has no extension name");
+			return -1;
+		}
+		if(!strcmp(handler,".lsp") || !strcmp(handler,".lp") ) 
+			handler_type = handler_type_lsp;
+		else if(!strcmp(handler,".lua"))
+			handler_type = handler_type_lua;
+		else
+		{
+			log(LOG_ERR, "%s:%s", "Not correct extension name, valid extension are lp, lsp, lua", handler);
+			return -1;
+		}
+    }
+	else
+	{
+		log(LOG_ERR, "%s", "Not script name");
+		return -1;
+	}
+
+    lsp_io lio={r, lputs:io_def_puts, lputc:io_def_putc, lwrite:io_def_write};
+
+    luaL_lsp_set_io(luabag->L,&lio);
+
+	char* p = FCGX_GetParam("REQUEST_METHOD", r->envp);
+	if(p && !strcmp(p,"POST"))
+    {
+		int rc = read_request_data(luabag->L);
+		if(rc!= 0)
+			return rc;
+    }
+
+	p = FCGX_GetParam("QUERY_STRING", r->envp);
+    luaL_lsp_setargs(luabag->L, p, p ? strlen(p) : 0);
+
+    lua_getfield(luabag->L,LUA_GLOBALSINDEX,"env");    
+    //luaL_lsp_setfield(luabag->L,"server_admin",r->server->server_admin);
+    luaL_lsp_setfield(luabag->L,"server_hostname", FCGX_GetParam("SERVER_NAME", r->envp));
+    luaL_lsp_setfield(luabag->L,"remote_ip",FCGX_GetParam("REMOTE_ADDR", r->envp));
+    luaL_lsp_setfield(luabag->L,"remote_host",FCGX_GetParam("REMOTE_ADDR", r->envp));
+    luaL_lsp_setfield(luabag->L,"remote_port",FCGX_GetParam("REMOTE_PORT", r->envp));
+    luaL_lsp_setfield(luabag->L,"local_ip", FCGX_GetParam("SERVER_ADDR", r->envp));
+	luaL_lsp_setfield(luabag->L,"local_host",FCGX_GetParam("SERVER_NAME", r->envp));
+    luaL_lsp_setfield(luabag->L,"local_port",FCGX_GetParam("SERVER_PORT", r->envp));
+	char hostname[256];
+	if (0 == gethostname(hostname, 256))
+	{
+		luaL_lsp_setfield(luabag->L,"local_host", hostname);
+		luaL_lsp_setfield(luabag->L,"hostname", hostname);
+	}
+    luaL_lsp_setfield(luabag->L,"method", FCGX_GetParam("REQUEST_METHOD", r->envp));
+    luaL_lsp_setfield(luabag->L,"handler", handler);
+    luaL_lsp_setfield(luabag->L,"uri", FCGX_GetParam("REQUEST_URI", r->envp));
+    luaL_lsp_setfield(luabag->L,"doc_uri", FCGX_GetParam("DOCUMENT_URI", r->envp));
+    luaL_lsp_setfield(luabag->L,"doc_root", FCGX_GetParam("DOCUMENT_ROOT", r->envp));
+	char* filename = FCGX_GetParam("SCRIPT_FILENAME", r->envp);
+    luaL_lsp_setfield(luabag->L,"filename", filename);
+    luaL_lsp_setfield(luabag->L,"args", FCGX_GetParam("QUERY_STRING", r->envp));
+    luaL_lsp_setfield(luabag->L,"accept_lang", FCGX_GetParam("HTTP_ACCEPT_LANGUAGE", r->envp));
+    lua_pop(luabag->L,1);
+    
+    luaL_lsp_chdir_to_file(luabag->L, filename);
+    
+    luaL_lsp_session_init(luabag->L,
+			"LSPSESSID",
+			7,
+			"/");
+			/*g_conf->cookie_name?dir_conf->cookie_name:"LSPSESSID",
+			g_conf->cookie_days>0?dir_conf->cookie_days:7,
+			g_conf->cookie_path?dir_conf->cookie_path:"/");
+			*/
+    
+    int status=0;
+    
+    switch(handler_type)
+    {
+		case handler_type_lsp: 
+			status=luaL_load_lsp_file(luabag->L, filename); 
+			//r->content_type="text/html";
+			break;
+		case handler_type_lua:
+			status=luaL_loadfile(luabag->L, filename);
+			//r->content_type="text/plain";
+			break;
+    }
+
+    if(status)
+    {
+		const char* e=lua_tostring(luabag->L,-1);
+		FCGX_PutS(e, r->out);
+		FCGX_FFlush(r->out);
+
+		log(LOG_ERR, "%s", e);
+
+        lua_pop(luabag->L,1);
+		luaL_lsp_chdir_restore(luabag->L);
+		return 500;
+    }
+
+    status=lua_pcall(luabag->L,0,LUA_MULTRET,0);
+    
+    if(status)
+    {
+		const char* e=lua_tostring(luabag->L,-1);
+
+		log(LOG_ERR, "%s", e);
+		FCGX_PutS(e, r->out);
+		FCGX_FFlush(r->out);
+
+		/*
+		if(g_conf->show_exception)	// if not 0
+			FCGX_PutS(e, r->out);
+			*/
+
+		lua_pop(luabag->L,1);
+    }
+    
+
+    int rnum=lua_gettop(luabag->L);
+
+    int result = 0;
+    
+    if(rnum>0)
+    {
+		result = lua_tointeger(luabag->L,-1);
+
+		if(!result || result==200)
+			result = 0;
+
+		lua_pop(luabag->L,rnum);
+    }
+
+    luaL_lsp_chdir_restore(luabag->L);
+
+    if(result == 0)
+		FCGX_FFlush(r->out);
+
+    return result;
+}
+
+
+bool lsp::luabag_cleanup(LUABAG* luabag)
+{
+    if(luabag && luabag->L)
+    {
+		/*
+	luaclose_luamysql();
+	luaclose_luacurl();
+	luaclose_luajson();
+	luaclose_luamcache();
+	*/
+	lua_close(luabag->L);
+	luabag->L=0;
+    }
+
+    return true;
+}
+
+
+
+int lsp::lua_log(lua_State *L)
+{
+    const char* s=luaL_checkstring(L,1);
+
+    log(LOG_INFO, "%s", s);
+    
+    return 0;
+}
+
+int lsp::lua_content_type(lua_State *L)
+{
+    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+
+    const char* s=luaL_checkstring(L,1);
+
+    //apr->content_type=apr_pstrdup(apr->pool,s);
+	//todo:set content_type
+	
+    
+    return 0;
+}
+
+int lsp::lua_set_out_header(lua_State *L)
+{
+    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+
+    const char* s1=luaL_checkstring(L,1);
+    const char* s2=0;
+    
+    if(lua_gettop(L)>1)
+		s2=luaL_checkstring(L,2);
+
+	/*
+    if(!s2 || !*s2)
+		apr_table_unset(apr->headers_out,s1);
+    else
+		apr_table_set(apr->headers_out,s1,s2);
+		*/
+
+    return 0;
+}
+
+int lsp::lua_get_in_header(lua_State *L)
+{
+    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+
+    const char* s1=luaL_checkstring(L,1);
+
+	std::string str = "HTTP_";
+	str += s1;
+	std::transform(str.begin(), str.end(),str.begin(), ::toupper);
+
+    const char* s2=FCGX_GetParam(str.c_str(), r->envp);
+
+    if(!s2)
+		s2="";
+
+    lua_pushstring(L,s2);
+ 
+    return 1;
+}
+
+
+int lsp::lua_uuid_gen(lua_State *L)
+{
+    char tmp[64];
+
+    uuid_t uuid;
+    uuid_generate(uuid);
+    uuid_unparse(uuid,tmp);
+    
+    lua_pushstring(L,tmp);
+ 
+    return 1;
+}
+
+int lsp::lua_version(lua_State *L)
+{
+    lua_pushstring(L,VERSION);
+ 
+    return 1;
+}
+
+
+int lsp::read_request_data(lua_State *L)
+{
+    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+
+    const char* p=FCGX_GetParam("CONTENT_LENGTH", r->envp);
+    int content_length = p? atoi(p) : -1;
+
+    if(content_length < 0)
+		return 411;//HTTP_LENGTH_REQUIRED;
+
+	// TODO: for max post?
+    if(content_length > 4096)
+		return 400;//HTTP_BAD_REQUEST;
+
+    int retval = 0;
+
+    luaL_Buffer buf;
+    luaL_buffinit(L,&buf);
+
+    //if(ap_should_client_block(apr))
+    {
+		char tmp[1024];
+        int len = 0;
+	
+        while(len<content_length)
+        {
+            int n = content_length - len;
+
+            //n = ap_get_client_block(apr,tmp,n>sizeof(tmp)?sizeof(tmp):n);
+			n = FCGX_GetStr(tmp, n > sizeof(tmp) ? sizeof(tmp) : n, r->in);
+            if(n <= 0)
+                break;
+
+            len+=n;
+			luaL_addlstring(&buf,tmp,n);
+        }
+
+		if(len!=content_length)
+			retval = -1;//HTTP_REQUEST_TIME_OUT;
+    }
+
+    const char* content_type = FCGX_GetParam("CONTENT_TYPE", r->envp);
+
+    int n = lua_gettop(L);
+
+    if(content_type && !strcmp(content_type,"application/x-www-form-urlencoded"))
+    {
+		lua_getglobal(L,"args_decode");
+		luaL_pushresult(&buf);
+
+		if(lua_isfunction(L,-2) && !lua_pcall(L,1,1,0))
+			lua_setglobal(L,"args_post");
+	}
+	else
+	{
+		lua_getfield(L,LUA_GLOBALSINDEX,"env");
+		luaL_pushresult(&buf);
+
+		if(lua_istable(L,-2))
+			lua_setfield(L,-2,"content");
+	}
+
+	lua_pop(L,lua_gettop(L)-n);
+    
+    return retval;
+}
+
+
+
