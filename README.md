@@ -11,6 +11,8 @@ go to sapi/cgi folder
 premake4 gmake
 make
 ```
+
+## Usage
 copy the luasp_cgi to your bin folder and add following to your (nginx/lighttpd) init script
 ```
 # start cgi
