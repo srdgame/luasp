@@ -17,11 +17,11 @@ solution "luasp_cgi"
 		libdirs {"../../lsplib/"}
 		defines { "TEST" }
 
-		configuration "Debug"
+		configuration {"Debug"}
 			defines { "DEBUG" }
 			flags { "Symbols" }
 
-		configuration "Release"
+		configuration {"Release"}
 			defines { "NDEBUG" }
-			flags { "Optimize" }
+			flags { "Optimize", "NoRTTI", "NoExceptions" }
 

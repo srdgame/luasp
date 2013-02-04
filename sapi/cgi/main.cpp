@@ -28,33 +28,39 @@ extern char **environ;
 
 #include <unistd.h>
 #include <uuid/uuid.h>
-#include <syslog.h>
+
+#include "log.h"
+#include "extmod.h"
+#include "config.h"
 
 #ifndef VERSION
 #define VERSION ""
 #endif /*VERSION*/
 
-static void PrintEnv(FCGX_Stream *out, const char *label, char **envp)
-{
-    FCGX_FPrintF(out, "%s:<br>\n<pre>\n", label);
-    for( ; *envp != NULL; envp++) {
-        FCGX_FPrintF(out, "%s\n", *envp);
-    }
-    FCGX_FPrintF(out, "</pre><p>\n");
-}
-
-#define log(level, format, ...) syslog(level, "%s:%d"#format, __FILE__, __LINE__, __VA_ARGS__)
+#define luasp_config_file "/etc/luasp/luasp.conf"
 
 namespace lsp
 {
 	// lsp handlers
     enum
     {
-	handler_type_unknown=0,
-	handler_type_lsp=1,
-	handler_type_lua=2
-    };
+		handler_type_unknown=0,
+		handler_type_lsp=1,
+		handler_type_lua=2
+	};
     
+	// module loader
+	ExtModMgr mod_mgr;
+	// configureation file
+	struct LSP_CONF
+	{
+		std::string init_script;
+		std::string cookie_name;
+		int cookie_days;
+		std::string cookie_path;
+		int show_exception;
+	};
+	LSP_CONF *g_conf;
 
     // lua container
     struct LUABAG
@@ -86,8 +92,15 @@ namespace lsp
     int read_request_data(lua_State *L);
 }
 
+void load_configuration();
+
 int main ()
 {
+	lsp::g_conf = new lsp::LSP_CONF();
+	load_configuration();
+	// load ext module first
+	lsp::mod_mgr.load();
+
 	FCGX_Init();
 	FCGX_Request request;
     int count = 0;
@@ -95,23 +108,33 @@ int main ()
 	FCGX_InitRequest(&request, 0, 0);
 
     openlog("lua_fcgi", LOG_CONS | LOG_PID, 0);
-    log(LOG_INFO, "%s", "====Started!!!");
+    log(LOG_INFO, "%s", "lua_fcgi start working...");
 
     while (FCGX_Accept_r(&request) >= 0) {
 		lsp::LUABAG luabag;
 		if (!luabag_init(&luabag))
-			log(LOG_INFO, "%s", "====Init failed!!=====");
+			log(LOG_INFO, "%s", "lua_fcgi init failed!!");
 		if (0 != luabag_run(&luabag, &request))
-			log(LOG_INFO, "%s", "====Run failed!!=====");
+			log(LOG_INFO, "%s", "lua_fcgi run script failed!!");
 		if (!luabag_cleanup(&luabag))
-			log(LOG_INFO, "%s", "====close failed!!!");
+			log(LOG_INFO, "%s", "lua_fcgi cleanup failed!!!");
 		FCGX_Finish_r(&request);
     } /* while */
-    log(LOG_INFO, "%s", "====Ended!!!");
+    log(LOG_INFO, "%s", "lua_fcgi stoped!");
 
+	delete lsp::g_conf;
     return 0;
 }
 
+void load_configuration()
+{
+	Config conf(luasp_config_file, environ);
+	lsp::g_conf->init_script = conf.pString("init_script");
+	lsp::g_conf->cookie_name = conf.pString("cookie_name");
+	lsp::g_conf->cookie_days = conf.pInt("cookie_days");
+	lsp::g_conf->cookie_path = conf.pString("cookie_path");
+	lsp::g_conf->show_exception = conf.pInt("show_exception");
+}
 
 bool lsp::luabag_init(LUABAG *luabag)
 {
@@ -125,31 +148,21 @@ bool lsp::luabag_init(LUABAG *luabag)
 	luaL_openlibs(luabag->L);
 	
 	luaopen_lualsp(luabag->L);
-	
-	/*
-	luaopen_luamysql(luabag->L);
 
-	luaopen_luacurl(luabag->L);
-	
-	luaopen_luajson(luabag->L);
-	
-	luaopen_luamcache(luabag->L);
-	*/
+	mod_mgr.open(luabag->L);
 	
 	lua_register(luabag->L,"module_version",lua_version);
 	lua_register(luabag->L,"log",lua_log);
 	lua_register(luabag->L,"uuid_gen",lua_uuid_gen);
 
-	/* TODO: for init_script
-	if(g_conf->init_script)
+	if(!g_conf->init_script.empty())
 	{
-	    if(luaL_loadfile(luabag->L,g_conf->init_script) || lua_pcall(luabag->L,0,0,0))
+	    if(luaL_loadfile(luabag->L, g_conf->init_script.c_str()) || lua_pcall(luabag->L,0,0,0))
 	    {
-		log(LOG_ERR,0,r,"%s",lua_tostring(luabag->L,-1));
-		lua_pop(luabag->L,1);
-	    }	    
+			log(LOG_ERR, "%s", lua_tostring(luabag->L,-1));
+			lua_pop(luabag->L,1);
+		}	    
 	}
-	*/
 	
 	lua_register(luabag->L,"content_type",lua_content_type);
 	lua_register(luabag->L,"set_out_header",lua_set_out_header);
@@ -232,13 +245,9 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
     luaL_lsp_chdir_to_file(luabag->L, filename);
     
     luaL_lsp_session_init(luabag->L,
-			"LSPSESSID",
-			7,
-			"/");
-			/*g_conf->cookie_name?dir_conf->cookie_name:"LSPSESSID",
-			g_conf->cookie_days>0?dir_conf->cookie_days:7,
-			g_conf->cookie_path?dir_conf->cookie_path:"/");
-			*/
+			!g_conf->cookie_name.empty() ? g_conf->cookie_name.c_str() : "LSPSESSID",
+			g_conf->cookie_days > 0 ? g_conf->cookie_days : 7,
+			!g_conf->cookie_path.empty() ? g_conf->cookie_path.c_str() : "/");
     
     int status=0;
     
@@ -277,10 +286,8 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
 		FCGX_PutS(e, r->out);
 		FCGX_FFlush(r->out);
 
-		/*
 		if(g_conf->show_exception)	// if not 0
 			FCGX_PutS(e, r->out);
-			*/
 
 		lua_pop(luabag->L,1);
     }
@@ -313,14 +320,9 @@ bool lsp::luabag_cleanup(LUABAG* luabag)
 {
     if(luabag && luabag->L)
     {
-		/*
-	luaclose_luamysql();
-	luaclose_luacurl();
-	luaclose_luajson();
-	luaclose_luamcache();
-	*/
-	lua_close(luabag->L);
-	luabag->L=0;
+		//lsp::mod_mgr.close(luabag->L);
+		lua_close(luabag->L);
+		luabag->L=0;
     }
 
     return true;
