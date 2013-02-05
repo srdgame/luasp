@@ -10,6 +10,8 @@ static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $"
 #include <cstring>
 #include <sstream>
 #include <algorithm>
+#include <unistd.h>
+#include <uuid/uuid.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -17,12 +19,9 @@ static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $"
 
 #include "llsplib.h"
 
-#include <unistd.h>
-#include <uuid/uuid.h>
-
-#ifndef VERSION
-#define VERSION ""
-#endif /*VERSION*/
+#ifndef LSP_VERSION
+#define LSP_VERSION ""
+#endif /*LSP_VERSION*/
 
 #include "lspcgi.h"
 
@@ -118,8 +117,10 @@ bool lsp::luabag_init(LUABAG *luabag)
 		}	    
 	}
 	
+	/*	
 	lua_register(luabag->L,"content_type",lua_content_type);
 	lua_register(luabag->L,"set_out_header",lua_set_out_header);
+	*/
 	lua_register(luabag->L,"get_in_header",lua_get_in_header);
 
 	return true;
@@ -301,6 +302,7 @@ int lsp::lua_log(lua_State *L)
     return 0;
 }
 
+/*
 int lsp::lua_content_type(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
@@ -313,7 +315,8 @@ int lsp::lua_content_type(lua_State *L)
     
     return 0;
 }
-
+*/
+/*
 int lsp::lua_set_out_header(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
@@ -331,7 +334,7 @@ int lsp::lua_set_out_header(lua_State *L)
 
     return 0;
 }
-
+*/
 int lsp::lua_get_in_header(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
@@ -368,7 +371,7 @@ int lsp::lua_uuid_gen(lua_State *L)
 
 int lsp::lua_version(lua_State *L)
 {
-    lua_pushstring(L,VERSION);
+    lua_pushstring(L,LSP_VERSION);
  
     return 1;
 }
