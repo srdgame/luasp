@@ -15,6 +15,7 @@ extern "C" {
 
 typedef int (*open_extmod)(lua_State* L);
 //typedef void (*close_extmod)(void);
+typedef const char* (*version_extmod)(void); 
 
 #ifdef __cplusplus 
 }
@@ -26,6 +27,7 @@ namespace lsp
 	{
 		open_extmod open;
 //		close_extmod close;
+		version_extmod version;
 		std::string name;
 	};
 
@@ -42,6 +44,9 @@ namespace lsp
 		void open(lua_State* L);
 		// Unload module from luastate
 //		void close(lua_State* L);
+//
+		const char* version(const char* name);
+		int list(lua_State* L);
 
 	private:
 		std::vector<ExtModule> modules;

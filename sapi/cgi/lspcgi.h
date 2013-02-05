@@ -37,7 +37,7 @@ namespace lsp
     // lua container
     struct LUABAG
     {
-	lua_State* L;
+		lua_State* L;
     };
 	struct REQBAG : public FCGX_Request
 	{
@@ -63,6 +63,8 @@ namespace lsp
     int lua_get_in_header(lua_State *L);
     int lua_uuid_gen(lua_State *L);
     int lua_version(lua_State *L);
+	int lua_module_version(lua_State *L);
+	int lua_module_list(lua_State *L);
 
     // lsp support
     int read_request_data(lua_State *L);

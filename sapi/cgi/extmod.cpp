@@ -15,6 +15,9 @@
 #include "log.h"
 
 const char* mod_lib_folder = "/usr/lib/luasp/";
+const char* default_version() {
+	return "0.1.0";
+}
 
 lsp::ExtModMgr::ExtModMgr()
 {
@@ -28,6 +31,7 @@ lsp::ExtModMgr::~ExtModMgr()
 static bool load_mod(const char* path, const char* filename, lsp::ExtModule& mod)
 {
 	mod.name = filename;
+	mod.name = mod.name.substr(0, mod.name.rfind('.'));
 
 	void* dl = NULL;
 	std::string full_path(path);
@@ -38,17 +42,25 @@ static bool load_mod(const char* path, const char* filename, lsp::ExtModule& mod
 		return false;
 
 	std::string open_func("luaopen_");
-	open_func += filename;
-	open_func = open_func.substr(0, open_func.rfind('.'));
+	open_func += mod.name;
 	mod.open = (open_extmod)dlsym(dl, open_func.c_str());
 
 	/*
 	std::string close_func("luaclose_");
-	close_func += filename;
+	close_func += mod_name;
 	mod.close = (close_extmod)dlsym(dl, close_func.c_str());
 
 	dlclose(dl);
 	*/
+
+	std::string version_func("luaversion_");
+	version_func += mod.name;
+	mod.version = (version_extmod)dlsym(dl, version_func.c_str());
+	if (!mod.version)
+	{
+		log(LOG_DEBUG, "no version found in %s", filename);
+		mod.version = default_version;
+	}
 
 	return mod.open /* && mod.close */;
 }
@@ -176,3 +188,30 @@ void lsp::ExtModMgr::close(lua_State* L)
 	}
 }
 */
+
+const char* lsp::ExtModMgr::version(const char* name)
+{
+	std::vector<ExtModule>::iterator ptr = modules.begin();
+	for (; ptr != modules.end(); ++ptr)
+	{
+		if (ptr->name == std::string(name))
+			return ptr->version();
+	}
+	log(LOG_DEBUG, "no version found for %s, module count %lu", name, modules.size());
+	return default_version();
+}
+
+int lsp::ExtModMgr::list(lua_State* L)
+{
+	std::vector<ExtModule>::iterator ptr = modules.begin();
+
+	lua_newtable(L);
+	int table_index = lua_gettop(L);
+
+	for (; ptr != modules.end(); ++ptr)
+	{
+		lua_pushstring(L, ptr->version());
+		lua_setfield(L, table_index, ptr->name.c_str()); 
+	}
+	return 1;
+}

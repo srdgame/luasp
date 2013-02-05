@@ -16,6 +16,8 @@ int luaopen_luaredis(lua_State* L);
 void luaclose_luamredis(void);
 #endif /*LUA_MODULE*/
 
+const char* luaversion_luaredis(void);
+
 
 #ifdef __cplusplus 
 }

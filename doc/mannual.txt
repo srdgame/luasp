@@ -2,16 +2,18 @@
 Manual
 Global functions:
 
-    module_version() - return module version;
+    version() - return luasp version;
+	module_version(string) - return ext module version
+	module_list() - return ext module name version pairs as a table
     dofile_lsp(filename) - load and execute lsp file;
     url_decode(string);
     args_decode(string);
     echo(...) - print values without CRLF;
     log(string) - write message to system log (or apache error log);
-    content_type(string) - set content type for output data (call before starting output);
 	//following two interfaces are removed
+    //content_type(string) - set content type for output data (call before starting output);
 	//set_out_header(name,value) - add or change output HTTP header (call before starting output);
-    //get_in_header(name) - return input HTTP header;
+    get_in_header(name) - return input HTTP header;
     uuid_gen() - return new uuid. 
 
 Global tables:

@@ -21,3 +21,8 @@ int luaopen_luaredis(lua_State* L)
     return 0;
 }
 
+const char* luaversion_luaredis(void)
+{
+	return "0.1.1";
+}
+
