@@ -1,25 +1,8 @@
 #ifndef __LUAMYSQL_H
 #define __LUAMYSQL_H
 
+#include "../extdefs.h"
 
-#ifdef __cplusplus 
-extern "C" {
-#endif /*__cplusplus*/ 
-
-#include <lua.h>  
-#include <lauxlib.h>  
-#include <lualib.h>  
-
-int luaopen_luamysql(lua_State* L);
-
-#ifndef LUA_MODULE
-void luaclose_luamysql(void);
-#endif /*LUA_MODULE*/
-
-
-#ifdef __cplusplus 
-}
-#endif /*__cplusplus*/ 
-
+DEF_LUASP_MODULE(luamysql)
 
 #endif /*__LUAMYSQL_H*/

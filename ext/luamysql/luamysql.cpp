@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 
+IMPL_LUASP_MODULE(luamysql)
+
 namespace libmysql
 {
     static const char LUA_MYSQL[]="LMYSQL*";

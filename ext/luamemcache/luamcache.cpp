@@ -17,6 +17,8 @@
 #include <netdb.h>
 #include <errno.h>
 
+IMPL_LUASP_MODULE(luamcache)
+
 namespace libmcache
 {
     struct LMCACHE

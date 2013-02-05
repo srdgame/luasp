@@ -6,6 +6,8 @@
 #include "luaredis.h"
 #include <cstdlib>
 
+IMPL_LUASP_MODULE(luaredis)
+
 void luaclose_luaredis(void)
 {
 }
@@ -19,10 +21,5 @@ int luaopen_luaredis(lua_State* L)
 #endif /*LUA_MODULE*/
 
     return 0;
-}
-
-const char* luaversion_luaredis(void)
-{
-	return "0.1.1";
 }
 

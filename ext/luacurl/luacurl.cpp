@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
+IMPL_LUASP_MODULE(luacurl)
+
 namespace libcurl
 {
     enum {uri_len=256, path_len=512, hdr_len=256};
@@ -395,4 +397,5 @@ int libcurl::lua_curl_send(lua_State* L)
 
     return 1;
 }
+
 

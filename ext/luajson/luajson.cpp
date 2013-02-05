@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+IMPL_LUASP_MODULE(luajson)
 
 namespace libjson
 {
