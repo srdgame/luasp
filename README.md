@@ -10,13 +10,21 @@ go to sapi/cgi folder
 ```
 premake4 gmake
 make
+sudo cp bin/luasp_fcgi /usr/sbin/
+```
+
+## Build module
+go ext folder and make the module you need
+```
+make
+sudo cp lua*.so /usr/lib/luasp/
 ```
 
 ## Usage
-copy the luasp_cgi to your bin folder and add following to your (nginx/lighttpd) init script
+add following to your (nginx/lighttpd) init script
 ```
 # start cgi
-spawn-fcgi -F 4 -u www-data -s /var/run/nginx-fcgi.sock -P /var/run/nginx-fcgi.pid -- /home/cch/mycode/github/luasp/sapi/cgi/bin/luasp_cgi
+spawn-fcgi -F 4 -u www-data -s /var/run/nginx-fcgi.sock -P /var/run/nginx-fcgi.pid -- /usr/sbin/luasp_cgi
 # stop cgi
 cat /var/run/nginx-fcgi.pid | xargs -n 1 kill
 ```
