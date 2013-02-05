@@ -5,16 +5,26 @@
 #ifndef lint
 static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $";
 #endif /* not lint */
-#include "fcgi_config.h"
 
 #include <cstdlib>
 #include <cstring>
-#include <string>
+#include <sstream>
 #include <algorithm>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+
+#include "llsplib.h"
+
+#include <unistd.h>
+#include <uuid/uuid.h>
+
+#ifndef VERSION
+#define VERSION ""
+#endif /*VERSION*/
+
+#include "lspcgi.h"
 
 #ifdef _WIN32
 #include <process.h>
@@ -22,77 +32,13 @@ static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $"
 extern char **environ;
 #endif
 
-#include "fcgiapp.h"
-
-#include "llsplib.h"
-
-#include <unistd.h>
-#include <uuid/uuid.h>
-
-#include "log.h"
-#include "extmod.h"
-#include "config.h"
-
-#ifndef VERSION
-#define VERSION ""
-#endif /*VERSION*/
-
 #define luasp_config_file "/etc/luasp/luasp.conf"
 
-namespace lsp
-{
-	// lsp handlers
-    enum
-    {
-		handler_type_unknown=0,
-		handler_type_lsp=1,
-		handler_type_lua=2
-	};
-    
-	// module loader
-	ExtModMgr mod_mgr;
-	// configureation file
-	struct LSP_CONF
-	{
-		std::string init_script;
-		std::string cookie_name;
-		int cookie_days;
-		std::string cookie_path;
-		int show_exception;
-	};
-	LSP_CONF *g_conf;
-
-    // lua container
-    struct LUABAG
-    {
-	lua_State* L;
-    };
-
-	int io_def_puts(void* ctx,const char* s) { return FCGX_PutS(s, ((FCGX_Request*)ctx)->out); }
-    int io_def_putc(void* ctx,int c) { return FCGX_PutChar(c, ((FCGX_Request*)ctx)->out); }
-    int io_def_write(void* ctx,const char* s,size_t len) { return FCGX_PutStr(s, len, ((FCGX_Request*)ctx)->out); }
-
-	// initialize
-	bool luabag_init(LUABAG* p);
-    // cleanup
-    bool luabag_cleanup(LUABAG* p);
-
-	// run
-	int luabag_run(LUABAG* p, FCGX_Request* r);
-
-    // implementation of lsp host functions
-    int lua_log(lua_State *L);
-    int lua_content_type(lua_State *L);
-    int lua_set_out_header(lua_State *L);
-    int lua_get_in_header(lua_State *L);
-    int lua_uuid_gen(lua_State *L);
-    int lua_version(lua_State *L);
-
-    // lsp support
-    int read_request_data(lua_State *L);
-}
-
 void load_configuration();
+
+lsp::ExtModMgr lsp::mod_mgr;
+
+lsp::LSP_CONF* lsp::g_conf = NULL;
 
 int main ()
 {
@@ -102,25 +48,33 @@ int main ()
 	lsp::mod_mgr.load();
 
 	FCGX_Init();
-	FCGX_Request request;
-    int count = 0;
+
+	lsp::REQBAG request;
 
 	FCGX_InitRequest(&request, 0, 0);
 
-    openlog("lua_fcgi", LOG_CONS | LOG_PID, 0);
-    log(LOG_INFO, "%s", "lua_fcgi start working...");
+    openlog("luasp_fcgi", LOG_CONS | LOG_PID, 0);
+    log(LOG_INFO, "%s", "luasp_fcgi start working...");
 
     while (FCGX_Accept_r(&request) >= 0) {
 		lsp::LUABAG luabag;
 		if (!luabag_init(&luabag))
-			log(LOG_INFO, "%s", "lua_fcgi init failed!!");
-		if (0 != luabag_run(&luabag, &request))
-			log(LOG_INFO, "%s", "lua_fcgi run script failed!!");
+		{
+	//		log(LOG_INFO, "%s", "lua_fcgi init failed!!");
+		}
+		int result = luabag_run(&luabag, &request);
+		if (0 != result)
+		{
+			output_error_page(&request, result);
+	//		log(LOG_INFO, "%s", "lua_fcgi run script failed!!");
+		}
 		if (!luabag_cleanup(&luabag))
-			log(LOG_INFO, "%s", "lua_fcgi cleanup failed!!!");
+		{
+		//	log(LOG_INFO, "%s", "lua_fcgi cleanup failed!!!");
+		}
 		FCGX_Finish_r(&request);
     } /* while */
-    log(LOG_INFO, "%s", "lua_fcgi stoped!");
+    log(LOG_INFO, "%s", "luasp_fcgi stoped!");
 
 	delete lsp::g_conf;
     return 0;
@@ -266,8 +220,7 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
     if(status)
     {
 		const char* e=lua_tostring(luabag->L,-1);
-		FCGX_PutS(e, r->out);
-		FCGX_FFlush(r->out);
+		FCGX_PutS(e, r->err);
 
 		log(LOG_ERR, "%s", e);
 
@@ -277,17 +230,17 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
     }
 
     status=lua_pcall(luabag->L,0,LUA_MULTRET,0);
+	// won't return other than 0, as the code has been excuted with outputs
     
     if(status)
     {
 		const char* e=lua_tostring(luabag->L,-1);
 
 		log(LOG_ERR, "%s", e);
-		FCGX_PutS(e, r->out);
-		FCGX_FFlush(r->out);
+		FCGX_PutS(e, r->err);
 
 		if(g_conf->show_exception)	// if not 0
-			FCGX_PutS(e, r->out);
+			FCGX_PutS(e, r->err);
 
 		lua_pop(luabag->L,1);
     }
@@ -309,8 +262,12 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
 
     luaL_lsp_chdir_restore(luabag->L);
 
+	/*
     if(result == 0)
 		FCGX_FFlush(r->out);
+	else
+		FCGX_FFlush(r->err);
+		*/
 
     return result;
 }
@@ -334,7 +291,12 @@ int lsp::lua_log(lua_State *L)
 {
     const char* s=luaL_checkstring(L,1);
 
-    log(LOG_INFO, "%s", s);
+    //log(LOG_INFO, "%s", s);
+    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+	if (r)
+	{
+		FCGX_PutS(s, r->err);
+	}
     
     return 0;
 }
@@ -362,12 +324,10 @@ int lsp::lua_set_out_header(lua_State *L)
     if(lua_gettop(L)>1)
 		s2=luaL_checkstring(L,2);
 
-	/*
     if(!s2 || !*s2)
-		apr_table_unset(apr->headers_out,s1);
+		header_table_unset(r,s1);
     else
-		apr_table_set(apr->headers_out,s1,s2);
-		*/
+		header_table_set(r,s1,s2);
 
     return 0;
 }
@@ -482,4 +442,15 @@ int lsp::read_request_data(lua_State *L)
 }
 
 
+int lsp::header_table_set(FCGX_Request* r, const char* key, const char* value)
+{
+	REQBAG* bag = (REQBAG*)r;
+	bag->out_header[key] = value;
+}
+
+int lsp::header_table_unset(FCGX_Request* r, const char* key)
+{
+	REQBAG* bag = (REQBAG*)r;
+	bag->out_header.erase(key);
+}
 
