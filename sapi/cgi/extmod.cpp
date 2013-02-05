@@ -58,7 +58,7 @@ static bool load_mod(const char* path, const char* filename, lsp::ExtModule& mod
 	mod.version = (version_extmod)dlsym(dl, version_func.c_str());
 	if (!mod.version)
 	{
-		log(LOG_DEBUG, "no version found in %s", filename);
+		//log(LOG_DEBUG, "no version found in %s", filename);
 		mod.version = default_version;
 	}
 
@@ -88,7 +88,7 @@ void lsp::ExtModMgr::load()
 				if (load_mod(mod_lib_folder, file.name, mod))
 				{
 					modules.push_back(mod);
-					log(LOG_INFO, "successfully loaded module %s", file.name);
+					//log(LOG_INFO, "successfully loaded module %s", file.name);
 				}
 				else
 				{
@@ -156,7 +156,7 @@ void lsp::ExtModMgr::load()
 			if (load_mod(mod_lib_folder, dir_info->d_name, mod))
 			{
 				modules.push_back(mod);
-				log(LOG_INFO, "successfully loaded module %s", dir_info->d_name);
+				//log(LOG_INFO, "successfully loaded module %s", dir_info->d_name);
 			}
 			else
 			{
@@ -197,7 +197,7 @@ const char* lsp::ExtModMgr::version(const char* name)
 		if (ptr->name == std::string(name))
 			return ptr->version();
 	}
-	log(LOG_DEBUG, "no version found for %s, module count %lu", name, modules.size());
+	//log(LOG_DEBUG, "no version found for %s, module count %lu", name, modules.size());
 	return default_version();
 }
 

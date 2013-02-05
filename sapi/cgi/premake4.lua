@@ -15,7 +15,7 @@ solution "luasp_cgi"
 		includedirs { "/usr/include/lua5.1", "../../lsplib/" }
 		links { "pthread", "fcgi", "lua5.1", "uuid" }
 		libdirs {"../../lsplib/"}
-		defines { 'LSP_VERSION=\\"luasp`date +%Y%m%d`\\"' }
+		defines { 'LSP_VERSION=\\"build`date +%Y%m%d`\\"' }
 
 		configuration {"Debug"}
 			defines { "DEBUG" }

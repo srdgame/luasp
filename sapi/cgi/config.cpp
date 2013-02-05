@@ -3,7 +3,8 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include "log.h"
+//#include "log.h"
+#define log(...)
 using namespace std;
 
 Config::Config(string name, string parentDebugInfo) {

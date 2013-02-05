@@ -37,6 +37,16 @@ client:set('foo', 'bar')
 local value = client:get('foo')
 print('redis value '..value)
 ?>
+<?
+print('luasp version'..version())
+print('luaredis version'..module_version('luaredis'))
+local t = module_list()
+for k, v in pairs(t) do
+	print('\t'..k..' : v'..v)
+end
+?>
+
+
 
 </body>
 
