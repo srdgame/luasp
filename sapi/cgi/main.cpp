@@ -53,6 +53,7 @@ int main ()
     log(LOG_INFO, "%s", "luasp_fcgi start working...");
 
     while (FCGX_Accept_r(&request) >= 0) {
+		request.header_out = false;
 		lsp::LUABAG luabag;
 		if (!luabag_init(&luabag))
 		{
@@ -209,11 +210,11 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
     {
 		case handler_type_lsp: 
 			status=luaL_load_lsp_file(luabag->L, filename); 
-			//r->content_type="text/html";
+			header_table_set(r, "CONTENT-TYPE", "text/html");
 			break;
 		case handler_type_lua:
 			status=luaL_loadfile(luabag->L, filename);
-			//r->content_type="text/plain";
+			header_table_set(r, "CONTENT-TYPE", "text/plain");
 			break;
     }
 
@@ -352,16 +353,4 @@ int lsp::read_request_data(lua_State *L)
     return retval;
 }
 
-
-int lsp::header_table_set(FCGX_Request* r, const char* key, const char* value)
-{
-	REQBAG* bag = (REQBAG*)r;
-	bag->out_header[key] = value;
-}
-
-int lsp::header_table_unset(FCGX_Request* r, const char* key)
-{
-	REQBAG* bag = (REQBAG*)r;
-	bag->out_header.erase(key);
-}
 

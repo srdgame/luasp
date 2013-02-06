@@ -41,12 +41,13 @@ namespace lsp
     };
 	struct REQBAG : public FCGX_Request
 	{
+		bool header_out;
 		std::map<std::string, std::string> out_header;
 	};
 
-	inline int io_def_puts(void* ctx,const char* s) { return FCGX_PutS(s, ((FCGX_Request*)ctx)->out); }
-    inline int io_def_putc(void* ctx,int c) { return FCGX_PutChar(c, ((FCGX_Request*)ctx)->out); }
-    inline int io_def_write(void* ctx,const char* s,size_t len) { return FCGX_PutStr(s, len, ((FCGX_Request*)ctx)->out); }
+	int io_def_puts(void* ctx,const char* s);
+	int io_def_putc(void* ctx,int c);
+	int io_def_write(void* ctx,const char* s,size_t len);
 
 	// initialize
 	bool luabag_init(LUABAG* p);

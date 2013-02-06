@@ -1,5 +1,6 @@
 
 #include <algorithm>
+#include <sstream>
 #include <uuid/uuid.h>
 #include "lspcgi.h"
 #include "llsplib.h"
@@ -18,21 +19,20 @@ int lsp::lua_log(lua_State *L)
     return 0;
 }
 
-/*
 int lsp::lua_content_type(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
 
     const char* s=luaL_checkstring(L,1);
 
-    //apr->content_type=apr_pstrdup(apr->pool,s);
-	//todo:set content_type
-	
-    
+	if (s)
+		header_table_set(r, "CONTENT-TYPE", s);
+	else
+		header_table_unset(r, "CONTENT-TYPE");
+
     return 0;
 }
-*/
-/*
+
 int lsp::lua_set_out_header(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
@@ -50,7 +50,7 @@ int lsp::lua_set_out_header(lua_State *L)
 
     return 0;
 }
-*/
+
 int lsp::lua_get_in_header(lua_State *L)
 {
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
@@ -109,5 +109,52 @@ int lsp::lua_module_version(lua_State *L)
 int lsp::lua_module_list(lua_State *L)
 {
 	return mod_mgr.list(L);
+}
+
+static inline void output_headers(lsp::REQBAG* bag)
+{
+	if (bag->header_out)
+		return;
+	std::map<std::string, std::string>::iterator ptr = bag->out_header.begin();
+	std::stringstream ss;
+	for (; ptr != bag->out_header.end(); ++ptr)
+	{
+		ss << ptr->first << ": ";
+		ss << ptr->second << std::endl;
+	}
+	FCGX_PutS(ss.str().c_str(), bag->out);
+	bag->header_out = true;
+}
+int lsp::io_def_puts(void* ctx,const char* s) { 
+	REQBAG *bag = (REQBAG*)ctx;
+	
+	output_headers(bag);
+	return FCGX_PutS(s, bag->out); 
+}
+
+int lsp::io_def_putc(void* ctx,int c) {
+	REQBAG *bag = (REQBAG*)ctx;
+	
+	output_headers(bag);
+	return FCGX_PutChar(c, bag->out);
+}
+
+int lsp::io_def_write(void* ctx,const char* s,size_t len) {
+	REQBAG *bag = (REQBAG*)ctx;
+	
+	output_headers(bag);
+	return FCGX_PutStr(s, len, bag->out); 
+}
+
+int lsp::header_table_set(FCGX_Request* r, const char* key, const char* value)
+{
+	REQBAG* bag = (REQBAG*)r;
+	bag->out_header[key] = value;
+}
+
+int lsp::header_table_unset(FCGX_Request* r, const char* key)
+{
+	REQBAG* bag = (REQBAG*)r;
+	bag->out_header.erase(key);
 }
 

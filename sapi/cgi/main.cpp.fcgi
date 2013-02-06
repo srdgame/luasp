@@ -29,6 +29,9 @@ extern char **environ;
 #endif
 
 #include "fcgiapp.h"
+#include "lspcgi.h"
+lsp::ExtModMgr lsp::mod_mgr;
+lsp::LSP_CONF* lsp::g_conf = NULL;
 
 static void PrintEnv(FCGX_Stream *out, char *label, char **envp)
 {

@@ -10,9 +10,8 @@ Global functions:
     args_decode(string);
     echo(...) - print values without CRLF;
     log(string) - write message to system log (or apache error log);
-	//following two interfaces are removed
-    //content_type(string) - set content type for output data (call before starting output);
-	//set_out_header(name,value) - add or change output HTTP header (call before starting output);
+    content_type(string) - set content type for output data (call before starting output);
+	set_out_header(name,value) - add or change output HTTP header (call before starting output);
     get_in_header(name) - return input HTTP header;
     uuid_gen() - return new uuid. 
 
