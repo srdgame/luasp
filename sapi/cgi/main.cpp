@@ -117,10 +117,8 @@ bool lsp::luabag_init(LUABAG *luabag)
 		}	    
 	}
 	
-	/*	
 	lua_register(luabag->L,"content_type",lua_content_type);
 	lua_register(luabag->L,"set_out_header",lua_set_out_header);
-	*/
 	lua_register(luabag->L,"get_in_header",lua_get_in_header);
 
 	return true;
@@ -193,7 +191,6 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
     luaL_lsp_setfield(luabag->L,"doc_root", FCGX_GetParam("DOCUMENT_ROOT", r->envp));
 	char* filename = FCGX_GetParam("SCRIPT_FILENAME", r->envp);
     luaL_lsp_setfield(luabag->L,"filename", filename);
-    luaL_lsp_setfield(luabag->L,"args", FCGX_GetParam("QUERY_STRING", r->envp));
     luaL_lsp_setfield(luabag->L,"accept_lang", FCGX_GetParam("HTTP_ACCEPT_LANGUAGE", r->envp));
     lua_pop(luabag->L,1);
     
@@ -288,51 +285,54 @@ bool lsp::luabag_cleanup(LUABAG* luabag)
 
 int lsp::read_request_data(lua_State *L)
 {
-    FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
+	FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
 
-    const char* p=FCGX_GetParam("CONTENT_LENGTH", r->envp);
-    int content_length = p? atoi(p) : -1;
+	const char* p=FCGX_GetParam("CONTENT_LENGTH", r->envp);
+	int content_length = p? atoi(p) : -1;
 
-    if(content_length < 0)
+	if(content_length < 0)
 		return 411;//HTTP_LENGTH_REQUIRED;
 
 	// TODO: for max post?
-    if(content_length > 4096)
+	if(content_length > 4096)
 		return 400;//HTTP_BAD_REQUEST;
 
-    int retval = 0;
+	int retval = 0;
 
-    luaL_Buffer buf;
-    luaL_buffinit(L,&buf);
+	luaL_Buffer buf;
+	luaL_buffinit(L,&buf);
 
-    //if(ap_should_client_block(apr))
-    {
-		char tmp[1024];
-        int len = 0;
-	
-        while(len<content_length)
-        {
-            int n = content_length - len;
+	//if(ap_should_client_block(apr))
+	{
+		char *tmp = new char[1024];
+		int len = 0;
 
-            //n = ap_get_client_block(apr,tmp,n>sizeof(tmp)?sizeof(tmp):n);
-			n = FCGX_GetStr(tmp, n > sizeof(tmp) ? sizeof(tmp) : n, r->in);
-            if(n <= 0)
-                break;
+		while(len<content_length)
+		{
+			int n = content_length - len;
 
-            len+=n;
+			//n = ap_get_client_block(apr,tmp,n>sizeof(tmp)?sizeof(tmp):n);
+			n = FCGX_GetStr(tmp, n > 1024 ? 1024 : n, r->in);
+
+			if(n <= 0)
+				break;
+
+			len += n;
 			luaL_addlstring(&buf,tmp,n);
-        }
+		}
 
 		if(len!=content_length)
 			retval = -1;//HTTP_REQUEST_TIME_OUT;
-    }
 
-    const char* content_type = FCGX_GetParam("CONTENT_TYPE", r->envp);
+		delete[] tmp;
+	}
 
-    int n = lua_gettop(L);
+	const char* content_type = FCGX_GetParam("CONTENT_TYPE", r->envp);
 
-    if(content_type && !strcmp(content_type,"application/x-www-form-urlencoded"))
-    {
+	int n = lua_gettop(L);
+
+	if(content_type && !strcmp(content_type,"application/x-www-form-urlencoded"))
+	{
 		lua_getglobal(L,"args_decode");
 		luaL_pushresult(&buf);
 
@@ -349,8 +349,8 @@ int lsp::read_request_data(lua_State *L)
 	}
 
 	lua_pop(L,lua_gettop(L)-n);
-    
-    return retval;
+
+	return retval;
 }
 
 
