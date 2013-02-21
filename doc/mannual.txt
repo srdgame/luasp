@@ -34,7 +34,6 @@ Global tables:
     _G.env.handler - apache2 handler name;
     _G.env.uri - current URI;
     _G.env.filename - full path to corrent script file;
-    _G.env.args - unparsed GET parameters;
     _G.env.content - posted content body (if request method = POST and Content-Type <> application/x-form-urlencoded);
     _G.env.session - user unique session id. 
 

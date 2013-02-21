@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+//#include "log.h"
 
 namespace llspaux
 {
@@ -282,6 +283,7 @@ int luaL_lsp_session_init(lua_State *L,const char* cookie_name,int days,const ch
 	if(!lua_pcall(L,1,1,0))
 	    p=lua_tostring(L,-1);
     }
+	//log(LOG_DEBUG, "COOKIE: %s", p);
 
     for(const char* p1=p,*p2;p1;p1=p2)
     {

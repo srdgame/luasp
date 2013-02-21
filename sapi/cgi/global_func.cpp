@@ -63,6 +63,8 @@ int lsp::lua_get_in_header(lua_State *L)
 
     const char* s2=FCGX_GetParam(str.c_str(), r->envp);
 
+    //log(LOG_INFO, "get_in_header %s", s2);
+
     if(!s2)
 		s2="";
 
