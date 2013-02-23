@@ -38,6 +38,8 @@ lsp::LSP_CONF* lsp::g_conf = NULL;
 
 int main ()
 {
+	log_open();
+
 	lsp::g_conf = new lsp::LSP_CONF();
 	load_configuration();
 	// load ext module first
