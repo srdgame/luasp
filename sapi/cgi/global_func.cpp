@@ -9,7 +9,7 @@ int lsp::lua_log(lua_State *L)
 {
     const char* s=luaL_checkstring(L,1);
 
-    //log(LOG_INFO, "%s", s);
+    log(LOG_INFO, "%s", s);
     FCGX_Request* r = (FCGX_Request*)luaL_lsp_get_io_ctx(L);
 	if (r)
 	{

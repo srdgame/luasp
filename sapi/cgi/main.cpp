@@ -143,7 +143,10 @@ int lsp::luabag_run(LUABAG* luabag, FCGX_Request* r)
 		if(!strcmp(handler,".lsp") || !strcmp(handler,".lp") ) 
 			handler_type = handler_type_lsp;
 		else if(!strcmp(handler,".lua"))
+		{
 			handler_type = handler_type_lua;
+			log(LOG_ERR, "%s", "lua handler");
+		}
 		else
 		{
 			log(LOG_ERR, "%s:%s", "Not correct extension name, valid extension are lp, lsp, lua", handler);

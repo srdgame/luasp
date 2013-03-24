@@ -1,0 +1,3 @@
+1. Make the env.session as table.
+2. Implement session functions? (if env.session is not a table)
+
